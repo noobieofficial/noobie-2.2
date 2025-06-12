@@ -2,12 +2,13 @@
 #define CALC_PARSER_H
 
 #include <stdbool.h>
-#include "helper_function-2.2.h"
+#include "helper_function-2_2.h"
 
 // Tipi di token per il parser
 typedef enum {
     TOKEN_NUMBER,
     TOKEN_VARIABLE,
+    TOKEN_BOOLEAN,
     TOKEN_OPERATOR,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
