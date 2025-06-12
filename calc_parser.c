@@ -135,7 +135,7 @@ Token get_next_token(Tokenizer *tokenizer) {
         size_t start = tokenizer->pos;
         
         while (tokenizer->pos < tokenizer->length && 
-               is_alnum_or_underscore(tokenizer->input[tokenizer->pos])) {
+            is_alnum_or_underscore(tokenizer->input[tokenizer->pos])) {
             tokenizer->pos++;
         }
         
@@ -143,25 +143,18 @@ Token get_next_token(Tokenizer *tokenizer) {
         strncpy(token.value, &tokenizer->input[start], length);
         token.value[length] = '\0';
 
-        char lower_value[256];
-        for (size_t i = 0; i < length; i++) {
-            lower_value[i] = tolower(token.value[i]);
-        }
-        lower_value[length] = '\0';
-
-        if (strcasecmp(lower_value, "true") == 0) {
+        if (strcasecmp(token.value, "true") == 0) {  // <-- USA token.value, non lower_value
             token.type = TOKEN_BOOLEAN;
             token.number = 1.0;
             return token;
-        } else if (strcasecmp(lower_value, "false") == 0) {
+        } else if (strcasecmp(token.value, "false") == 0) {  // <-- USA token.value, non lower_value
             token.type = TOKEN_BOOLEAN;
             token.number = 0.0;
             return token;
         }
-        
-        // Controlla se è un operatore logico
-        if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
-            strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
+
+        else if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
+             strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
             token.type = TOKEN_OPERATOR;
         } else {
             token.type = TOKEN_VARIABLE;
@@ -405,17 +398,8 @@ CalcResult parse_primary_expression(Tokenizer *tokenizer, int line_number) {
         result.value.b_val = (token.number != 0.0);
         return result;
     }
-    
-    if (token.type == TOKEN_VARIABLE) {  
-        if (strcasecmp(token.value, "true") == 0) {
-            result.type = TYPE_BOOL;
-            result.value.b_val = true;
-            return result;
-        } else if (strcasecmp(token.value, "false") == 0) {
-            result.type = TYPE_BOOL;
-            result.value.b_val = false;
-            return result;
-        }
+
+    if (token.type == TOKEN_VARIABLE) {
         Variable *var = find_variable(token.value);
         if (!var) {
             handle_error("VARIABLE NOT FOUND IN EXPRESSION", line_number);
