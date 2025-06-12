@@ -406,7 +406,7 @@ CalcResult parse_primary_expression(Tokenizer *tokenizer, int line_number) {
         return result;
     }
     
-    if (token.type == TOKEN_VARIABLE) {
+    if (token.type == TOKEN_VARIABLE) {  
         if (strcasecmp(token.value, "true") == 0) {
             result.type = TYPE_BOOL;
             result.value.b_val = true;
