@@ -1,9 +1,10 @@
+#include <math.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <math.h>
 #include <stdbool.h>
+
 #include "calc_parser.h"
 
 // Inizializza il tokenizer
@@ -141,10 +142,26 @@ Token get_next_token(Tokenizer *tokenizer) {
         size_t length = tokenizer->pos - start;
         strncpy(token.value, &tokenizer->input[start], length);
         token.value[length] = '\0';
+
+        char lower_value[256];
+        for (size_t i = 0; i < length; i++) {
+            lower_value[i] = tolower(token.value[i]);
+        }
+        lower_value[length] = '\0';
+
+        if (strcasecmp(lower_value, "true") == 0) {
+            token.type = TOKEN_BOOLEAN;
+            token.number = 1.0;
+            return token;
+        } else if (strcasecmp(lower_value, "false") == 0) {
+            token.type = TOKEN_BOOLEAN;
+            token.number = 0.0;
+            return token;
+        }
         
         // Controlla se è un operatore logico
-        if (strcmp(token.value, "AND") == 0 || strcmp(token.value, "OR") == 0 || 
-            strcmp(token.value, "XOR") == 0 || strcmp(token.value, "NOT") == 0) {
+        if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
+            strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
             token.type = TOKEN_OPERATOR;
         } else {
             token.type = TOKEN_VARIABLE;
@@ -154,6 +171,8 @@ Token get_next_token(Tokenizer *tokenizer) {
     
     // Token non riconosciuto
     tokenizer->pos++;
+
+    printf("TOKEN: type=%d, value='%s'\n", token.type, token.value);
     return token;
 }
 
@@ -303,7 +322,7 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
         }
     }
     // Operatori logici
-    else if (strcmp(op, "AND") == 0) {
+    else if (strcasecmp(op, "AND") == 0) {
         result.type = TYPE_BOOL;
         bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
                         (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
@@ -311,7 +330,7 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
                          (right.type == TYPE_INT) ? (right.value.i_val != 0) : (right.value.f_val != 0.0);
         result.value.b_val = left_bool && right_bool;
     }
-    else if (strcmp(op, "OR") == 0) {
+    else if (strcasecmp(op, "OR") == 0) {
         result.type = TYPE_BOOL;
         bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
                         (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
@@ -319,7 +338,7 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
                          (right.type == TYPE_INT) ? (right.value.i_val != 0) : (right.value.f_val != 0.0);
         result.value.b_val = left_bool || right_bool;
     }
-    else if (strcmp(op, "XOR") == 0) {
+    else if (strcasecmp(op, "XOR") == 0) {
         result.type = TYPE_BOOL;
         bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
                         (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
@@ -352,7 +371,7 @@ CalcResult apply_unary_operator(const char *op, CalcResult operand, int line_num
             handle_error("UNARY PLUS REQUIRES NUMERIC OPERAND", line_number);
         }
     }
-    else if (strcmp(op, "NOT") == 0) {
+    else if (strcasecmp(op, "NOT") == 0) {
         result.type = TYPE_BOOL;
         bool operand_bool = (operand.type == TYPE_BOOL) ? operand.value.b_val : 
                            (operand.type == TYPE_INT) ? (operand.value.i_val != 0) : (operand.value.f_val != 0.0);
@@ -380,8 +399,23 @@ CalcResult parse_primary_expression(Tokenizer *tokenizer, int line_number) {
         }
         return result;
     }
+
+    if (token.type == TOKEN_BOOLEAN) {
+        result.type = TYPE_BOOL;
+        result.value.b_val = (token.number != 0.0);
+        return result;
+    }
     
     if (token.type == TOKEN_VARIABLE) {
+        if (strcasecmp(token.value, "true") == 0) {
+            result.type = TYPE_BOOL;
+            result.value.b_val = true;
+            return result;
+        } else if (strcasecmp(token.value, "false") == 0) {
+            result.type = TYPE_BOOL;
+            result.value.b_val = false;
+            return result;
+        }
         Variable *var = find_variable(token.value);
         if (!var) {
             handle_error("VARIABLE NOT FOUND IN EXPRESSION", line_number);
@@ -422,7 +456,7 @@ CalcResult parse_unary_expression(Tokenizer *tokenizer, int line_number) {
     Token token = get_next_token(tokenizer);
     
     if (token.type == TOKEN_OPERATOR && 
-        (strcmp(token.value, "-") == 0 || strcmp(token.value, "+") == 0 || strcmp(token.value, "NOT") == 0)) {
+        (strcmp(token.value, "-") == 0 || strcmp(token.value, "+") == 0 || strcasecmp(token.value, "NOT") == 0)) {
         CalcResult operand = parse_unary_expression(tokenizer, line_number);
         return apply_unary_operator(token.value, operand, line_number);
     } else {
@@ -588,7 +622,7 @@ CalcResult parse_and_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_equality_expression(tokenizer, line_number);
     
     Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcmp(token.value, "AND") == 0) {
+    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "AND") == 0) {
         CalcResult right = parse_equality_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
         token = get_next_token(tokenizer);
@@ -615,7 +649,7 @@ CalcResult parse_xor_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_and_expression(tokenizer, line_number);
     
     Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcmp(token.value, "XOR") == 0) {
+    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "XOR") == 0) {
         CalcResult right = parse_and_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
         token = get_next_token(tokenizer);
@@ -642,7 +676,7 @@ CalcResult parse_or_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_xor_expression(tokenizer, line_number);
     
     Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcmp(token.value, "OR") == 0) {
+    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "OR") == 0) {
         CalcResult right = parse_xor_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
         token = get_next_token(tokenizer);
