@@ -165,7 +165,6 @@ Token get_next_token(Tokenizer *tokenizer) {
     // Token non riconosciuto
     tokenizer->pos++;
 
-    printf("TOKEN: type=%d, value='%s'\n", token.type, token.value);
     return token;
 }
 
