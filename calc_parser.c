@@ -47,6 +47,13 @@ bool is_operator(const char *str) {
     return false;
 }
 
+Token peek_token(Tokenizer *tokenizer) {
+    size_t saved_pos = tokenizer->pos;  // Salva posizione attuale
+    Token token = get_next_token(tokenizer);  // Leggi token
+    tokenizer->pos = saved_pos;  // Ripristina posizione
+    return token;
+}
+
 // Ottiene il prossimo token
 Token get_next_token(Tokenizer *tokenizer) {
     Token token = {TOKEN_ERROR, "", 0.0};
@@ -143,20 +150,25 @@ Token get_next_token(Tokenizer *tokenizer) {
         strncpy(token.value, &tokenizer->input[start], length);
         token.value[length] = '\0';
 
-        if (strcasecmp(token.value, "true") == 0) {  // <-- USA token.value, non lower_value
+        // DEBUG: Stampa il token estratto
+        printf("DEBUG: Token trovato: '%s'\n", token.value);
+        
+        if (strcasecmp(token.value, "true") == 0) {
+            printf("DEBUG: Riconosciuto come TRUE\n");
             token.type = TOKEN_BOOLEAN;
             token.number = 1.0;
             return token;
-        } else if (strcasecmp(token.value, "false") == 0) {  // <-- USA token.value, non lower_value
+        } else if (strcasecmp(token.value, "false") == 0) {
+            printf("DEBUG: Riconosciuto come FALSE\n");
             token.type = TOKEN_BOOLEAN;
             token.number = 0.0;
             return token;
-        }
-
-        else if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
-             strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
+        } else if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
+                strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
+            printf("DEBUG: Riconosciuto come OPERATORE LOGICO\n");
             token.type = TOKEN_OPERATOR;
         } else {
+            printf("DEBUG: Riconosciuto come VARIABILE\n");
             token.type = TOKEN_VARIABLE;
         }
         return token;
@@ -491,27 +503,22 @@ CalcResult parse_power_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_multiplicative_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_power_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
+    // Usa peek_token invece del sistema di backtracking
+    Token token = peek_token(tokenizer);
     while (token.type == TOKEN_OPERATOR && 
            (strcmp(token.value, "*") == 0 || strcmp(token.value, "/") == 0 || strcmp(token.value, "%") == 0)) {
+        
+        // Ora che sappiamo che il token è quello giusto, consumalo
+        get_next_token(tokenizer);
+        
         CalcResult right = parse_power_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
+        
+        // Guarda il prossimo token
+        token = peek_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
-        }
-    }
-    
+    // Non serve più backtracking manuale!
     return left;
 }
 
