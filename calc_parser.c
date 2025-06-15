@@ -452,11 +452,10 @@ CalcResult parse_unary_expression(Tokenizer *tokenizer, int line_number) {
     } else {
         // Rimetti il token indietro
         if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR) {
-                tokenizer->pos -= strlen(token.value);
-            } else if (token.type == TOKEN_NUMBER) {
-                tokenizer->pos -= strlen(token.value);
-            } else if (token.type == TOKEN_VARIABLE) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
                 tokenizer->pos -= strlen(token.value);
             } else {
                 tokenizer->pos--;
@@ -479,17 +478,16 @@ CalcResult parse_power_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -507,17 +505,16 @@ CalcResult parse_multiplicative_expression(Tokenizer *tokenizer, int line_number
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -535,17 +532,16 @@ CalcResult parse_additive_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -564,17 +560,16 @@ CalcResult parse_relational_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -592,17 +587,16 @@ CalcResult parse_equality_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -619,17 +613,16 @@ CalcResult parse_and_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -646,17 +639,16 @@ CalcResult parse_xor_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
@@ -673,17 +665,16 @@ CalcResult parse_or_expression(Tokenizer *tokenizer, int line_number) {
     }
     
     // Rimetti l'ultimo token indietro
-    if (token.type != TOKEN_END) {
-        if (token.type == TOKEN_OPERATOR) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_NUMBER) {
-            tokenizer->pos -= strlen(token.value);
-        } else if (token.type == TOKEN_VARIABLE) {
-            tokenizer->pos -= strlen(token.value);
-        } else {
-            tokenizer->pos--;
+        if (token.type != TOKEN_END) {
+            if (token.type == TOKEN_OPERATOR || 
+                token.type == TOKEN_NUMBER || 
+                token.type == TOKEN_VARIABLE || 
+                token.type == TOKEN_BOOLEAN) {
+                tokenizer->pos -= strlen(token.value);
+            } else {
+                tokenizer->pos--;
+            }
         }
-    }
     
     return left;
 }
