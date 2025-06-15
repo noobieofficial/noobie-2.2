@@ -47,12 +47,7 @@ bool is_operator(const char *str) {
     return false;
 }
 
-Token peek_token(Tokenizer *tokenizer) {
-    size_t saved_pos = tokenizer->pos;  // Salva posizione attuale
-    Token token = get_next_token(tokenizer);  // Leggi token
-    tokenizer->pos = saved_pos;  // Ripristina posizione
-    return token;
-}
+
 
 // Ottiene il prossimo token
 Token get_next_token(Tokenizer *tokenizer) {
@@ -503,22 +498,27 @@ CalcResult parse_power_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_multiplicative_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_power_expression(tokenizer, line_number);
     
-    // Usa peek_token invece del sistema di backtracking
-    Token token = peek_token(tokenizer);
+    Token token = get_next_token(tokenizer);
     while (token.type == TOKEN_OPERATOR && 
            (strcmp(token.value, "*") == 0 || strcmp(token.value, "/") == 0 || strcmp(token.value, "%") == 0)) {
-        
-        // Ora che sappiamo che il token è quello giusto, consumalo
-        get_next_token(tokenizer);
-        
         CalcResult right = parse_power_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        
-        // Guarda il prossimo token
-        token = peek_token(tokenizer);
+        token = get_next_token(tokenizer);
     }
     
-    // Non serve più backtracking manuale!
+    // Rimetti l'ultimo token indietro
+    if (token.type != TOKEN_END) {
+        if (token.type == TOKEN_OPERATOR) {
+            tokenizer->pos -= strlen(token.value);
+        } else if (token.type == TOKEN_NUMBER) {
+            tokenizer->pos -= strlen(token.value);
+        } else if (token.type == TOKEN_VARIABLE) {
+            tokenizer->pos -= strlen(token.value);
+        } else {
+            tokenizer->pos--;
+        }
+    }
+    
     return left;
 }
 
