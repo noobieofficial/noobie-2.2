@@ -12,6 +12,8 @@ void init_tokenizer(Tokenizer *tokenizer, const char *input) {
     tokenizer->input = input;
     tokenizer->pos = 0;
     tokenizer->length = strlen(input);
+    tokenizer->current_token.type = TOKEN_ERROR;
+    tokenizer->has_current = false;
 }
 
 // Salta gli spazi bianchi
@@ -30,27 +32,26 @@ bool is_alnum_or_underscore(char c) {
     return isalnum(c) || c == '_';
 }
 
-// Controlla se una stringa è un operatore
-bool is_operator(const char *str) {
-    const char *operators[] = {
-        "***", "**", "+", "-", "*", "/", "%",
-        "AND", "OR", "XOR", "NOT",
-        "==", "!=", "<=", ">=", "<", ">"
-    };
-    int num_operators = sizeof(operators) / sizeof(operators[0]);
-    
-    for (int i = 0; i < num_operators; i++) {
-        if (strcmp(str, operators[i]) == 0) {
-            return true;
-        }
+// Peek del prossimo token senza consumarlo
+Token peek_token(Tokenizer *tokenizer) {
+    if (tokenizer->has_current) {
+        return tokenizer->current_token;
     }
-    return false;
+    
+    size_t saved_pos = tokenizer->pos;
+    Token token = get_next_token_internal(tokenizer);
+    tokenizer->pos = saved_pos;
+    return token;
 }
 
+// Consuma il token corrente se corrisponde al tipo atteso
+bool consume_token(Tokenizer *tokenizer, TokenType expected_type) {
+    Token token = get_next_token(tokenizer);
+    return token.type == expected_type;
+}
 
-
-// Ottiene il prossimo token
-Token get_next_token(Tokenizer *tokenizer) {
+// Implementazione interna per ottenere il prossimo token
+Token get_next_token_internal(Tokenizer *tokenizer) {
     Token token = {TOKEN_ERROR, "", 0.0};
     
     skip_whitespace(tokenizer);
@@ -101,7 +102,7 @@ Token get_next_token(Tokenizer *tokenizer) {
         return token;
     }
     
-    // Operatori multicarattere e parole chiave
+    // Operatori multicarattere
     if (tokenizer->pos + 2 < tokenizer->length && 
         strncmp(&tokenizer->input[tokenizer->pos], "***", 3) == 0) {
         strcpy(token.value, "***");
@@ -132,7 +133,7 @@ Token get_next_token(Tokenizer *tokenizer) {
         return token;
     }
     
-    // Identificatori (variabili o operatori logici)
+    // Identificatori (variabili, operatori logici, booleani)
     if (is_alpha_or_underscore(current)) {
         size_t start = tokenizer->pos;
         
@@ -144,26 +145,28 @@ Token get_next_token(Tokenizer *tokenizer) {
         size_t length = tokenizer->pos - start;
         strncpy(token.value, &tokenizer->input[start], length);
         token.value[length] = '\0';
-
-        // DEBUG: Stampa il token estratto
-        printf("DEBUG: Token trovato: '%s'\n", token.value);
         
-        if (strcasecmp(token.value, "true") == 0) {
-            printf("DEBUG: Riconosciuto come TRUE\n");
+        // Converti in maiuscolo per il confronto
+        char upper_value[256];
+        for (int i = 0; i < length && i < 255; i++) {
+            upper_value[i] = toupper(token.value[i]);
+        }
+        upper_value[length] = '\0';
+        
+        if (strcmp(upper_value, "TRUE") == 0) {
             token.type = TOKEN_BOOLEAN;
             token.number = 1.0;
             return token;
-        } else if (strcasecmp(token.value, "false") == 0) {
-            printf("DEBUG: Riconosciuto come FALSE\n");
+        } else if (strcmp(upper_value, "FALSE") == 0) {
             token.type = TOKEN_BOOLEAN;
             token.number = 0.0;
             return token;
-        } else if (strcasecmp(token.value, "AND") == 0 || strcasecmp(token.value, "OR") == 0 || 
-                strcasecmp(token.value, "XOR") == 0 || strcasecmp(token.value, "NOT") == 0) {
-            printf("DEBUG: Riconosciuto come OPERATORE LOGICO\n");
+        } else if (strcmp(upper_value, "AND") == 0 || strcmp(upper_value, "OR") == 0 || 
+                strcmp(upper_value, "XOR") == 0 || strcmp(upper_value, "NOT") == 0) {
+            // Mantieni la versione originale per gli operatori
+            strcpy(token.value, upper_value);
             token.type = TOKEN_OPERATOR;
         } else {
-            printf("DEBUG: Riconosciuto come VARIABILE\n");
             token.type = TOKEN_VARIABLE;
         }
         return token;
@@ -171,27 +174,27 @@ Token get_next_token(Tokenizer *tokenizer) {
     
     // Token non riconosciuto
     tokenizer->pos++;
-
     return token;
 }
 
-// Converte risultati a tipo comune per operazioni
-CalcResult convert_to_common_type(CalcResult a, CalcResult b) {
-    CalcResult result = {TYPE_INT, {0}};
-    
-    if (a.type == TYPE_FLOAT || b.type == TYPE_FLOAT) {
-        result.type = TYPE_FLOAT;
-        result.value.f_val = (a.type == TYPE_FLOAT ? a.value.f_val : (float)a.value.i_val) +
-                           (b.type == TYPE_FLOAT ? b.value.f_val : (float)b.value.i_val);
-    } else {
-        result.type = TYPE_INT;
-        result.value.i_val = a.value.i_val + b.value.i_val;
+// Ottiene il prossimo token con caching
+Token get_next_token(Tokenizer *tokenizer) {
+    if (tokenizer->has_current) {
+        tokenizer->has_current = false;
+        return tokenizer->current_token;
     }
     
-    return result;
+    Token token = get_next_token_internal(tokenizer);
+    return token;
 }
 
-// Applica operatori binari
+// Rimette un token indietro
+void unget_token(Tokenizer *tokenizer, Token token) {
+    tokenizer->current_token = token;
+    tokenizer->has_current = true;
+}
+
+// Applica operatori binari con gestione migliorata dei tipi
 CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult right, int line_number) {
     CalcResult result = {TYPE_INT, {0}};
     
@@ -259,13 +262,15 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
         }
         result.value.f_val = pow(base, exp);
     }
-    // Operatori relazionali
+    // Operatori relazionali - SEMPRE restituiscono bool
     else if (strcmp(op, "==") == 0) {
         result.type = TYPE_BOOL;
         if (left.type == TYPE_FLOAT || right.type == TYPE_FLOAT) {
             double left_val = (left.type == TYPE_FLOAT ? left.value.f_val : (double)left.value.i_val);
             double right_val = (right.type == TYPE_FLOAT ? right.value.f_val : (double)right.value.i_val);
-            result.value.b_val = (left_val == right_val);
+            result.value.b_val = (fabs(left_val - right_val) < 1e-9);
+        } else if (left.type == TYPE_BOOL && right.type == TYPE_BOOL) {
+            result.value.b_val = (left.value.b_val == right.value.b_val);
         } else {
             result.value.b_val = (left.value.i_val == right.value.i_val);
         }
@@ -275,7 +280,9 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
         if (left.type == TYPE_FLOAT || right.type == TYPE_FLOAT) {
             double left_val = (left.type == TYPE_FLOAT ? left.value.f_val : (double)left.value.i_val);
             double right_val = (right.type == TYPE_FLOAT ? right.value.f_val : (double)right.value.i_val);
-            result.value.b_val = (left_val != right_val);
+            result.value.b_val = (fabs(left_val - right_val) >= 1e-9);
+        } else if (left.type == TYPE_BOOL && right.type == TYPE_BOOL) {
+            result.value.b_val = (left.value.b_val != right.value.b_val);
         } else {
             result.value.b_val = (left.value.i_val != right.value.i_val);
         }
@@ -321,28 +328,22 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
         }
     }
     // Operatori logici
-    else if (strcasecmp(op, "AND") == 0) {
+    else if (strcmp(op, "AND") == 0) {
         result.type = TYPE_BOOL;
-        bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
-                        (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
-        bool right_bool = (right.type == TYPE_BOOL) ? right.value.b_val : 
-                         (right.type == TYPE_INT) ? (right.value.i_val != 0) : (right.value.f_val != 0.0);
+        bool left_bool = convert_to_bool(left);
+        bool right_bool = convert_to_bool(right);
         result.value.b_val = left_bool && right_bool;
     }
-    else if (strcasecmp(op, "OR") == 0) {
+    else if (strcmp(op, "OR") == 0) {
         result.type = TYPE_BOOL;
-        bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
-                        (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
-        bool right_bool = (right.type == TYPE_BOOL) ? right.value.b_val : 
-                         (right.type == TYPE_INT) ? (right.value.i_val != 0) : (right.value.f_val != 0.0);
+        bool left_bool = convert_to_bool(left);
+        bool right_bool = convert_to_bool(right);
         result.value.b_val = left_bool || right_bool;
     }
-    else if (strcasecmp(op, "XOR") == 0) {
+    else if (strcmp(op, "XOR") == 0) {
         result.type = TYPE_BOOL;
-        bool left_bool = (left.type == TYPE_BOOL) ? left.value.b_val : 
-                        (left.type == TYPE_INT) ? (left.value.i_val != 0) : (left.value.f_val != 0.0);
-        bool right_bool = (right.type == TYPE_BOOL) ? right.value.b_val : 
-                         (right.type == TYPE_INT) ? (right.value.i_val != 0) : (right.value.f_val != 0.0);
+        bool left_bool = convert_to_bool(left);
+        bool right_bool = convert_to_bool(right);
         result.value.b_val = left_bool != right_bool;
     }
     else {
@@ -350,6 +351,20 @@ CalcResult apply_binary_operator(const char *op, CalcResult left, CalcResult rig
     }
     
     return result;
+}
+
+// Funzione helper per convertire qualsiasi tipo a bool
+bool convert_to_bool(CalcResult value) {
+    switch (value.type) {
+        case TYPE_BOOL:
+            return value.value.b_val;
+        case TYPE_INT:
+            return value.value.i_val != 0;
+        case TYPE_FLOAT:
+            return value.value.f_val != 0.0f;
+        default:
+            return false;
+    }
 }
 
 // Applica operatori unari
@@ -370,11 +385,9 @@ CalcResult apply_unary_operator(const char *op, CalcResult operand, int line_num
             handle_error("UNARY PLUS REQUIRES NUMERIC OPERAND", line_number);
         }
     }
-    else if (strcasecmp(op, "NOT") == 0) {
+    else if (strcmp(op, "NOT") == 0) {
         result.type = TYPE_BOOL;
-        bool operand_bool = (operand.type == TYPE_BOOL) ? operand.value.b_val : 
-                           (operand.type == TYPE_INT) ? (operand.value.i_val != 0) : (operand.value.f_val != 0.0);
-        result.value.b_val = !operand_bool;
+        result.value.b_val = !convert_to_bool(operand);
     }
     else {
         handle_error("UNKNOWN UNARY OPERATOR", line_number);
@@ -446,49 +459,28 @@ CalcResult parse_unary_expression(Tokenizer *tokenizer, int line_number) {
     Token token = get_next_token(tokenizer);
     
     if (token.type == TOKEN_OPERATOR && 
-        (strcmp(token.value, "-") == 0 || strcmp(token.value, "+") == 0 || strcasecmp(token.value, "NOT") == 0)) {
+        (strcmp(token.value, "-") == 0 || strcmp(token.value, "+") == 0 || strcmp(token.value, "NOT") == 0)) {
         CalcResult operand = parse_unary_expression(tokenizer, line_number);
         return apply_unary_operator(token.value, operand, line_number);
     } else {
         // Rimetti il token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
+        unget_token(tokenizer, token);
         return parse_primary_expression(tokenizer, line_number);
     }
 }
 
-// Parser per espressioni di potenza
+// Parser per espressioni di potenza (associatività destra)
 CalcResult parse_power_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_unary_expression(tokenizer, line_number);
     
     Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && 
-           (strcmp(token.value, "**") == 0 || strcmp(token.value, "***") == 0)) {
-        CalcResult right = parse_unary_expression(tokenizer, line_number);
-        left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
+    if (token.type == TOKEN_OPERATOR && 
+        (strcmp(token.value, "**") == 0 || strcmp(token.value, "***") == 0)) {
+        CalcResult right = parse_power_expression(tokenizer, line_number); // Associatività destra
+        return apply_binary_operator(token.value, left, right, line_number);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -496,26 +488,14 @@ CalcResult parse_power_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_multiplicative_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_power_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && 
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && 
            (strcmp(token.value, "*") == 0 || strcmp(token.value, "/") == 0 || strcmp(token.value, "%") == 0)) {
         CalcResult right = parse_power_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -523,26 +503,14 @@ CalcResult parse_multiplicative_expression(Tokenizer *tokenizer, int line_number
 CalcResult parse_additive_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_multiplicative_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && 
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && 
            (strcmp(token.value, "+") == 0 || strcmp(token.value, "-") == 0)) {
         CalcResult right = parse_multiplicative_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -550,27 +518,15 @@ CalcResult parse_additive_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_relational_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_additive_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && 
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && 
            (strcmp(token.value, "<") == 0 || strcmp(token.value, ">") == 0 || 
             strcmp(token.value, "<=") == 0 || strcmp(token.value, ">=") == 0)) {
         CalcResult right = parse_additive_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -578,26 +534,14 @@ CalcResult parse_relational_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_equality_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_relational_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && 
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && 
            (strcmp(token.value, "==") == 0 || strcmp(token.value, "!=") == 0)) {
         CalcResult right = parse_relational_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -605,25 +549,13 @@ CalcResult parse_equality_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_and_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_equality_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "AND") == 0) {
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && strcmp(token.value, "AND") == 0) {
         CalcResult right = parse_equality_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -631,25 +563,13 @@ CalcResult parse_and_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_xor_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_and_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "XOR") == 0) {
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && strcmp(token.value, "XOR") == 0) {
         CalcResult right = parse_and_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -657,25 +577,13 @@ CalcResult parse_xor_expression(Tokenizer *tokenizer, int line_number) {
 CalcResult parse_or_expression(Tokenizer *tokenizer, int line_number) {
     CalcResult left = parse_xor_expression(tokenizer, line_number);
     
-    Token token = get_next_token(tokenizer);
-    while (token.type == TOKEN_OPERATOR && strcasecmp(token.value, "OR") == 0) {
+    Token token;
+    while ((token = get_next_token(tokenizer)).type == TOKEN_OPERATOR && strcmp(token.value, "OR") == 0) {
         CalcResult right = parse_xor_expression(tokenizer, line_number);
         left = apply_binary_operator(token.value, left, right, line_number);
-        token = get_next_token(tokenizer);
     }
     
-    // Rimetti l'ultimo token indietro
-        if (token.type != TOKEN_END) {
-            if (token.type == TOKEN_OPERATOR || 
-                token.type == TOKEN_NUMBER || 
-                token.type == TOKEN_VARIABLE || 
-                token.type == TOKEN_BOOLEAN) {
-                tokenizer->pos -= strlen(token.value);
-            } else {
-                tokenizer->pos--;
-            }
-        }
-    
+    unget_token(tokenizer, token);
     return left;
 }
 
@@ -698,4 +606,38 @@ CalcResult evaluate_expression(const char *expression, int line_number) {
     }
     
     return result;
+}
+
+// Funzioni di utilità rimosse dal codice originale ma mantenute per compatibilità
+CalcResult convert_to_common_type(CalcResult a, CalcResult b) {
+    // Questa funzione non è più utilizzata con la nuova implementazione
+    // ma mantenuta per compatibilità
+    CalcResult result = {TYPE_INT, {0}};
+    
+    if (a.type == TYPE_FLOAT || b.type == TYPE_FLOAT) {
+        result.type = TYPE_FLOAT;
+        result.value.f_val = (a.type == TYPE_FLOAT ? a.value.f_val : (float)a.value.i_val) +
+                           (b.type == TYPE_FLOAT ? b.value.f_val : (float)b.value.i_val);
+    } else {
+        result.type = TYPE_INT;
+        result.value.i_val = a.value.i_val + b.value.i_val;
+    }
+    
+    return result;
+}
+
+bool is_operator(const char *str) {
+    const char *operators[] = {
+        "***", "**", "+", "-", "*", "/", "%",
+        "AND", "OR", "XOR", "NOT",
+        "==", "!=", "<=", ">=", "<", ">"
+    };
+    int num_operators = sizeof(operators) / sizeof(operators[0]);
+    
+    for (int i = 0; i < num_operators; i++) {
+        if (strcmp(str, operators[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
