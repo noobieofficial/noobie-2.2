@@ -137,6 +137,43 @@ def handle_error(message: str, line_number: Optional[int] = None):
         traceback.print_exc()
     sys.exit(1)
 
+def is_valid_expression(expression: str) -> bool:
+    """Check if a string is a valid mathematical expression"""
+    # Check for balanced parentheses
+    paren_count = 0
+    brace_count = 0
+    
+    for char in expression:
+        if char == '(':
+            paren_count += 1
+        elif char == ')':
+            paren_count -= 1
+        elif char == '{':
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+        
+        # If at any point we have more closing than opening, it's invalid
+        if paren_count < 0 or brace_count < 0:
+            return False
+    
+    # Check if all parentheses and braces are balanced
+    if paren_count != 0 or brace_count != 0:
+        return False
+    
+    # Check if it contains mathematical operators or is numeric
+    math_operators = ['+', '-', '*', '/', '//', '%', '**', '(', ')']
+    has_operator = any(op in expression for op in math_operators)
+    
+    # Check if it's a number
+    try:
+        float(expression)
+        return True
+    except ValueError:
+        pass
+    
+    return has_operator
+
 def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
     """Initialize a variable based on its type with improved validation"""
     var_type = var_type.upper()
@@ -158,10 +195,18 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
     raw_value = str(raw_value).strip()
     
     try:
-        # Handle mathematical expressions
-        if any(op in raw_value for op in "+-*/()") and var_type in ["INT", "FLOAT"]:
-            result = eval(raw_value, {"__builtins__": {}})
-            return int(result) if var_type == "INT" else float(result)
+        # Skip expression evaluation if it starts with { (will be handled by interpreter)
+        if raw_value.startswith('{') and raw_value.endswith('}'):
+            raise NoobieError("Expression with curly braces should be handled by the interpreter")
+        
+        # Handle mathematical expressions for numeric types
+        if var_type in ["INT", "FLOAT"] and is_valid_expression(raw_value):
+            try:
+                result = eval(raw_value, {"__builtins__": {}})
+                return int(result) if var_type == "INT" else float(result)
+            except:
+                # If eval fails, try to parse as regular value
+                pass
         
         # Type-specific initialization
         if var_type == "INT":
@@ -189,6 +234,8 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
             
     except ValueError as e:
         raise NoobieError(f"Cannot convert '{raw_value}' to {var_type}: {e}")
+    except NoobieError:
+        raise
     except Exception as e:
         raise NoobieError(f"Initialization error: {e}")
 
