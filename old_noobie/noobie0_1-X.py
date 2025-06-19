@@ -1,25 +1,3 @@
-#TARANTOLA LUCA
-#VERSIONE 0.1.X NOOBIE INTERPRETER 
-#ULTIMA MODIFICA:
-#COMANDI
-#SET - set
-#SAY - say
-#HEAR - hear
-#CONVERT - convert
-#CHANGE - change
-#RANDOM - random
-#ROUND - round
-#DEL - del
-#RESET - reset
-#INCREMENT - increment
-#DECREMENT - decrement
-#SWAP - swap
-#UPPERCASE - uppercase
-#LOWERCASE - lowercase
-#REVERSE - reverse
-
-
-
 import sys
 from funzioni import *
 
