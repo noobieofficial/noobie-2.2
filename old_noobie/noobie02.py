@@ -200,7 +200,7 @@ class NoobieInterpreter:
             message = self._parse_mixed_string_command(parts, 1)
             message = replace_variables(message, self.variables)
             message = self._extract_expression(message)
-            print(message)
+            print(message, end='')  # Rimuove l'andata a capo automatica
             sys.exit(0)
         else:
             raise NoobieError("EXIT command requires at most one argument")
@@ -214,7 +214,7 @@ class NoobieInterpreter:
         message = self._parse_mixed_string_command(parts, 1)
         message = replace_variables(message, self.variables)
         message = self._extract_expression(message)
-        print(message)
+        print(message, end='')  # Rimuove l'andata a capo automatica
     
     def _handle_create(self, parts: List[str], line_number: int):
         """Handle CREATE command with improved parsing for expressions in braces"""
@@ -321,7 +321,7 @@ class NoobieInterpreter:
         prompt = replace_variables(prompt, self.variables)
         prompt = self._extract_expression(prompt)
         
-        # Get user input
+        # Get user input (senza andata a capo automatica nel prompt)
         user_input = input(prompt)
         
         # Initialize the value with the correct type
@@ -532,46 +532,86 @@ class NoobieInterpreter:
         if not line:
             return
         
-        # Replace variables with their values (but preserve case for commands before lowercasing)
+        # Store the original line for processing
         original_line = line
-        line = replace_variables(line, self.variables)
         
-        # Parse command - keep original case for the first parsing
+        # Parse command - preserve original case for parsing
         parts = original_line.split()
         if not parts:
             return
         
-        # Convert command to lowercase but preserve variable names case sensitivity
+        # Convert only the command to lowercase, preserve case for arguments
         command = parts[0].lower()
         
-        # For SET command, we need to handle case sensitivity differently
-        if command == 'create':
-            # Keep the original parts but lowercase the command
-            parts[0] = command
-            # Handle case sensitivity within the SET handler
-        else:
-            # For other commands, convert everything to lowercase
-            parts = line.lower().split()
+        # Create new parts list with lowercase command but original case arguments
+        processed_parts = [command] + parts[1:]
+        
+        # For variable replacement, we need to be careful about preserving string content
+        # Only replace variables in the line, not in quoted strings
+        line_for_variable_replacement = self._replace_variables_preserve_strings(original_line)
         
         # Handle commands using command handlers
         if command in self.command_handlers:
             try:
-                self.command_handlers[command](parts, line_number)
+                self.command_handlers[command](processed_parts, line_number)
             except NoobieError:
                 raise
             except Exception as e:
                 raise NoobieError(f"Error in {command.upper()} command: {e}")
         
         # Handle arithmetic expressions
-        elif any(op in line for op in ['+', '-', '*', '/', '//', '%', '**', '==', '!=', '<', '>', 
-                                       'AND', 'OR', 'NOT', 'XOR', 'and', 'or', 'not', 'xor']):
+        elif any(op in line_for_variable_replacement for op in ['+', '-', '*', '/', '//', '%', '**', '==', '!=', '<', '>', 
+                                    'AND', 'OR', 'NOT', 'XOR', 'and', 'or', 'not', 'xor']):
             try:
-                result = self._evaluate_expression_with_parentheses(line)
-                print(result)
+                result = self._evaluate_expression_with_parentheses(line_for_variable_replacement)
+                print(result, end='')  # Rimuove l'andata a capo automatica
             except NoobieError:
                 raise
         else:
             raise NoobieError(f"Unknown command: {command}")
+        
+    def _replace_variables_preserve_strings(self, line: str) -> str:
+        """Replace variables but preserve content inside quoted strings"""
+        result = ""
+        i = 0
+        
+        while i < len(line):
+            if line[i] in ['"', "'"]:
+                # Found start of quoted string - preserve everything inside
+                quote_char = line[i]
+                result += line[i]  # Add opening quote
+                i += 1
+                
+                # Copy everything until closing quote
+                while i < len(line) and line[i] != quote_char:
+                    result += line[i]
+                    i += 1
+                
+                if i < len(line):
+                    result += line[i]  # Add closing quote
+                    i += 1
+            else:
+                # Not in quotes, process normally for variable replacement
+                char_added = False
+                # Check if this could be start of a variable reference
+                if line[i] in ['@', '?']:
+                    # Find the variable name
+                    var_start = i
+                    i += 1
+                    while i < len(line) and (line[i].isalnum() or line[i] == '_'):
+                        i += 1
+                    var_part = line[var_start:i]
+                    
+                    # Apply variable replacement to this part only
+                    replaced = replace_variables(var_part, self.variables)
+                    result += replaced
+                    char_added = True
+                
+                if not char_added:
+                    result += line[i]
+                    i += 1
+        
+        return result
     
     def interpret(self, code: str):
         """Main interpretation method with IF support"""
