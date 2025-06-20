@@ -22,7 +22,7 @@ class Command(Enum):
     RANDOM = "RANDOM"
     CHANGE = "CHANGE"
     CONVERT = "CONVERT"
-    LISTENED = "LISTENED"
+    LISTEN = "LISTEN"
 
 @dataclass
 class Variable:
@@ -96,6 +96,15 @@ def replace_variables(line: str, variables: Dict[str, Variable]) -> str:
     """Replace variable references with their values or types"""
     def substitute(match):
         prefix, var_name = match.groups()
+        
+        # Handle special reserved variable END (case insensitive)
+        if var_name.lower() == "end":
+            if prefix == "@":
+                return "\\n"
+            elif prefix == '?':
+                return "STR"
+            return match.group(0)
+        
         if var_name not in variables:
             return match.group(0)
             
