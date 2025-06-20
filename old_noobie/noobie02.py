@@ -215,7 +215,7 @@ class NoobieInterpreter:
         var_type = parts[1]
         message = ' '.join(parts[2:]).strip('"')
         
-        user_input = input(f"{message}: ")
+        user_input = input(f"{message}")
         value = initialize_variable(var_type, user_input)
         self.variables['listened'] = Variable(var_type.upper(), value)
     
