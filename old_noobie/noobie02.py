@@ -41,8 +41,91 @@ class NoobieInterpreter:
         except Exception as e:
             raise NoobieError(f"error evaluating expression: {e}")
     
+    def _reconstruct_string_from_parts(self, parts: List[str], start_index: int) -> str:
+        """Reconstruct a string from mixed quoted and unquoted parts"""
+        result_parts = []
+        i = start_index
+        
+        while i < len(parts):
+            part = parts[i]
+            
+            # If it's a quoted string, add it as is (removing quotes)
+            if (part.startswith('"') and part.endswith('"')) or \
+               (part.startswith("'") and part.endswith("'")):
+                result_parts.append(part[1:-1])  # Remove quotes
+            # If it's a variable name, convert it to @variable format
+            else:
+                # Check if it's the special END variable (case insensitive)
+                if part.lower() == "end":
+                    result_parts.append("@end")
+                else:
+                    result_parts.append(f"@{part}")
+            
+            i += 1
+        
+        return ''.join(result_parts)
+    
+    def _parse_mixed_string_command(self, parts: List[str], start_index: int) -> str:
+        """Parse a command that can have mixed quoted strings and variables"""
+        # Check if this looks like a traditional single quoted string
+        joined = ' '.join(parts[start_index:])
+        
+        # If it starts and ends with quotes and doesn't contain unquoted variable names, treat as traditional
+        if ((joined.startswith('"') and joined.endswith('"')) or 
+            (joined.startswith("'") and joined.endswith("'"))):
+            # Check if it's a simple quoted string without mixed parts
+            quote_char = joined[0]
+            # Count quotes to see if it's just one quoted string
+            quote_count = joined.count(quote_char)
+            if quote_count == 2:  # Opening and closing quote only
+                return joined[1:-1]  # Return without quotes, will be processed normally
+        
+        # Otherwise, reconstruct from parts preserving original spacing
+        return self._reconstruct_from_original_line(parts, start_index)
+    
+    def _reconstruct_from_original_line(self, parts: List[str], start_index: int) -> str:
+        """Reconstruct string from original line, preserving only spaces inside quotes"""
+        # Join the parts back with spaces, then parse more carefully
+        original = ' '.join(parts[start_index:])
+        result = ""
+        i = 0
+        
+        while i < len(original):
+            if original[i] in ['"', "'"]:
+                # Found start of quoted string
+                quote_char = original[i]
+                i += 1  # Skip opening quote
+                # Find matching closing quote and preserve all content inside including spaces
+                quote_content = ""
+                while i < len(original) and original[i] != quote_char:
+                    quote_content += original[i]
+                    i += 1
+                if i < len(original):  # Skip closing quote
+                    i += 1
+                result += quote_content
+            elif original[i].isspace():
+                # Skip spaces between parts (don't preserve them)
+                i += 1
+            else:
+                # Found start of variable name
+                var_name = ""
+                while i < len(original) and not original[i].isspace() and original[i] not in ['"', "'"]:
+                    var_name += original[i]
+                    i += 1
+                
+                # Handle special END variable (case insensitive)
+                if var_name.lower() == "end":
+                    result += "@end"
+                else:
+                    result += f"@{var_name}"
+        
+        return result
+    
     def _extract_expression(self, message: str) -> str:
         """Extract and execute expressions in curly braces"""
+        # First handle the special \\n sequence for END variable
+        message = message.replace("\\n", "\n")
+        
         pattern = r'\{([^{}]+)\}'
         
         while re.search(pattern, message):
@@ -112,8 +195,11 @@ class NoobieInterpreter:
         """Handle EXIT command"""
         if len(parts) == 1:
             sys.exit(0)
-        elif len(parts) == 2:
-            message = parts[1].strip('"')
+        elif len(parts) >= 2:
+            # Parse message (supporting both traditional and decomposed strings)
+            message = self._parse_mixed_string_command(parts, 1)
+            message = replace_variables(message, self.variables)
+            message = self._extract_expression(message)
             print(message)
             sys.exit(0)
         else:
@@ -124,13 +210,9 @@ class NoobieInterpreter:
         if len(parts) < 2:
             raise NoobieError("SAY command requires a message")
         
-        # Join all parts after 'say' to handle spaces in messages
-        message = ' '.join(parts[1:]).strip('"')
-        
-        # Check for extra quotes
-        if message.count('"') > 0:
-            raise NoobieError("extra characters after message in SAY command")
-        
+        # Parse message (supporting both traditional and decomposed strings)
+        message = self._parse_mixed_string_command(parts, 1)
+        message = replace_variables(message, self.variables)
         message = self._extract_expression(message)
         print(message)
     
@@ -149,9 +231,9 @@ class NoobieInterpreter:
         var_type = parts[offset].upper()
         var_name = parts[offset + 1].lower()
         
-        # Check for reserved variable name
-        if var_name == "listened":
-            raise NoobieError("cannot use 'listened' as variable name")
+        # Check for reserved variable names (case insensitive)
+        if var_name.lower() == "end":
+            raise NoobieError("cannot use 'end' as variable name (reserved for newline)")
         
         # Check if variable is already a constant
         if var_name in self.variables and self.variables[var_name].const:
@@ -208,16 +290,48 @@ class NoobieInterpreter:
         self.variables[var_name] = Variable(var_type, value, is_const)
     
     def _handle_listen(self, parts: List[str], line_number: int):
-        """Handle LISTEN command"""
+        """Handle LISTEN command with new syntax: LISTEN <type> [<variable_name>] "prompt" """
         if len(parts) < 3:
-            raise NoobieError("LISTEN command requires type and message")
+            raise NoobieError("LISTEN command requires at least type and prompt")
         
-        var_type = parts[1]
-        message = ' '.join(parts[2:]).strip('"')
+        var_type = parts[1].upper()
         
-        user_input = input(f"{message}")
-        value = initialize_variable(var_type, user_input)
-        self.variables['listened'] = Variable(var_type.upper(), value)
+        # Check if var_type is valid
+        if var_type not in [t.value for t in DataType]:
+            raise NoobieError(f"unsupported type: {var_type}")
+        
+        # Simple logic: if the third part starts with a quote, no variable name was provided
+        if parts[2].startswith('"') or parts[2].startswith("'"):
+            # listen <type> "prompt..."
+            var_name = "listened"
+            prompt = self._parse_mixed_string_command(parts, 2)
+        else:
+            # listen <type> <var_name> "prompt..."
+            var_name = parts[2].lower()
+            # Check if var_name is reserved
+            if var_name.lower() == "end":
+                raise NoobieError("cannot use 'end' as variable name (reserved for newline)")
+            prompt = self._parse_mixed_string_command(parts, 3)
+        
+        # Check if variable is already a constant
+        if var_name in self.variables and self.variables[var_name].const:
+            raise NoobieError(f"cannot modify constant variable: '{var_name}'")
+        
+        # Process the prompt (replace variables and expressions)
+        prompt = replace_variables(prompt, self.variables)
+        prompt = self._extract_expression(prompt)
+        
+        # Get user input
+        user_input = input(prompt)
+        
+        # Initialize the value with the correct type
+        try:
+            value = initialize_variable(var_type, user_input)
+        except NoobieError as e:
+            raise NoobieError(f"error converting input to {var_type}: {e}")
+        
+        # Store the variable
+        self.variables[var_name] = Variable(var_type, value)
     
     def _handle_change(self, parts: List[str], line_number: int):
         """Handle CHANGE command"""
@@ -563,4 +677,4 @@ def main():
         handle_error(f"Error reading file: {e}")
 
 if __name__ == '__main__':
-    main() 
+    main()
