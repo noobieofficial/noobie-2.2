@@ -14,6 +14,7 @@ class NoobieInterpreter:
         """Initialize command handlers for better maintainability"""
         return {
             'if': self._handle_if,
+            'while': self._handle_while,
             'say': self._handle_say,
             'del': self._handle_del,
             'exit': self._handle_exit,
@@ -161,30 +162,30 @@ class NoobieInterpreter:
         except Exception as e:
             raise NoobieError(f"error evaluating condition '{condition}': {e}")
     
-    def _find_matching_endo(self, lines: List[str], start_index: int) -> int:
-        """Find the matching ENDO for an IF statement"""
-        if_count = 1
+    def _find_matching_endo(self, lines: List[str], start_index: int, block_type: str = "if") -> int:
+        """Find the matching ENDO for an IF or WHILE statement"""
+        block_count = 1
         for i in range(start_index + 1, len(lines)):
             line = lines[i].strip().lower()
-            if line.startswith('if '):
-                if_count += 1
+            if line.startswith('if ') or line.startswith('while '):
+                block_count += 1
             elif line == 'endo':
-                if_count -= 1
-                if if_count == 0:
+                block_count -= 1
+                if block_count == 0:
                     return i
         
-        raise NoobieError("missing ENDO for IF statement")
+        raise NoobieError(f"missing ENDO for {block_type.upper()} statement")
     
     def _find_else_in_block(self, lines: List[str], start_index: int, end_index: int) -> Optional[int]:
         """Find ELSE at the same nesting level within an IF block"""
-        if_count = 0
+        block_count = 0
         for i in range(start_index + 1, end_index):
             line = lines[i].strip().lower()
-            if line.startswith('if '):
-                if_count += 1
+            if line.startswith('if ') or line.startswith('while '):
+                block_count += 1
             elif line == 'endo':
-                if_count -= 1
-            elif line == 'else' and if_count == 0:
+                block_count -= 1
+            elif line == 'else' and block_count == 0:
                 return i
         
         return None
@@ -192,6 +193,10 @@ class NoobieInterpreter:
     def _handle_if(self, parts: List[str], line_number: int):
         """Handle IF command - this is called when we encounter IF in single-line mode"""
         raise NoobieError("IF command should be handled in multiline context")
+    
+    def _handle_while(self, parts: List[str], line_number: int):
+        """Handle WHILE command - this is called when we encounter WHILE in single-line mode"""
+        raise NoobieError("WHILE command should be handled in multiline context")
     
     def _execute_if_else_block(self, condition: str, if_lines: List[str], else_lines: Optional[List[str]] = None):
         """Execute an IF/ELSE block based on condition"""
@@ -208,6 +213,25 @@ class NoobieInterpreter:
             # Execute ELSE block if it exists
             if else_lines:
                 block_code = '\n'.join(else_lines)
+                temp_interpreter = NoobieInterpreter()
+                temp_interpreter.variables = self.variables.copy()  # Share variables
+                temp_interpreter.interpret(block_code)
+                # Update our variables with any changes
+                self.variables.update(temp_interpreter.variables)
+    
+    def _execute_while_block(self, condition: str, while_lines: List[str], max_iterations: int = 10000):
+        """Execute a WHILE block repeatedly while condition is true"""
+        iteration_count = 0
+        
+        while self._evaluate_condition(condition):
+            # Safety check to prevent infinite loops
+            iteration_count += 1
+            if iteration_count > max_iterations:
+                raise NoobieError(f"WHILE loop exceeded maximum iterations ({max_iterations}). Possible infinite loop.")
+            
+            # Execute WHILE block
+            if while_lines:
+                block_code = '\n'.join(while_lines)
                 temp_interpreter = NoobieInterpreter()
                 temp_interpreter.variables = self.variables.copy()  # Share variables
                 temp_interpreter.interpret(block_code)
@@ -637,7 +661,7 @@ class NoobieInterpreter:
         return result
     
     def interpret(self, code: str):
-        """Main interpretation method with IF/ELSE support"""
+        """Main interpretation method with IF/ELSE and WHILE support"""
         try:
             lines = code.splitlines()
             i = 0
@@ -682,7 +706,7 @@ class NoobieInterpreter:
                     
                     # Find matching ENDO
                     try:
-                        endo_index = self._find_matching_endo(lines, i)
+                        endo_index = self._find_matching_endo(lines, i, "if")
                     except NoobieError as e:
                         e.line_number = line_number
                         raise
@@ -717,13 +741,48 @@ class NoobieInterpreter:
                     # Skip to after ENDO
                     i = endo_index + 1
                 
-                # Skip ELSE and ENDO lines (they're handled by IF processing)
+                # Check for WHILE statement
+                elif line.lower().startswith('while '):
+                    # Extract condition
+                    while_parts = line.split()
+                    if len(while_parts) < 3 or while_parts[-1].lower() != 'do':
+                        raise NoobieError("WHILE statement must end with DO", line_number)
+                    
+                    # Extract condition (everything between WHILE and DO)
+                    condition = ' '.join(while_parts[1:-1])
+                    
+                    # Find matching ENDO
+                    try:
+                        endo_index = self._find_matching_endo(lines, i, "while")
+                    except NoobieError as e:
+                        e.line_number = line_number
+                        raise
+                    
+                    # Extract WHILE block lines
+                    while_lines = []
+                    for j in range(i + 1, endo_index):
+                        block_line = lines[j].strip()
+                        if block_line:  # Skip empty lines in block
+                            while_lines.append(block_line)
+                    
+                    # Execute WHILE block
+                    try:
+                        self._execute_while_block(condition, while_lines)
+                    except NoobieError as e:
+                        if e.line_number is None:
+                            e.line_number = line_number
+                        raise
+                    
+                    # Skip to after ENDO
+                    i = endo_index + 1
+                
+                # Skip ELSE and ENDO lines (they're handled by IF/WHILE processing)
                 elif line.lower() in ['else', 'endo']:
-                    # These should only appear within IF blocks
+                    # These should only appear within IF/WHILE blocks
                     if line.lower() == 'else':
                         raise NoobieError("ELSE without matching IF", line_number)
                     elif line.lower() == 'endo':
-                        raise NoobieError("ENDO without matching IF", line_number)
+                        raise NoobieError("ENDO without matching IF or WHILE", line_number)
                     i += 1
                 
                 # Process other lines normally
