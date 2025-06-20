@@ -18,10 +18,10 @@ class NoobieInterpreter:
             'del': self._handle_del,
             'exit': self._handle_exit,
             'swap': self._handle_swap,
-            'create': self._handle_set,
-            'listen': self._handle_hear,
             'reset': self._handle_reset,
             'round': self._handle_round,
+            'create': self._handle_create,
+            'listen': self._handle_listen,
             'random': self._handle_random,
             'change': self._handle_change,
             'convert': self._handle_convert,
@@ -83,17 +83,17 @@ class NoobieInterpreter:
         message = self._extract_expression(message)
         print(message)
     
-    def _handle_set(self, parts: List[str], line_number: int):
-        """Handle SET command with improved parsing for expressions in braces"""
+    def _handle_create(self, parts: List[str], line_number: int):
+        """Handle CREATE command with improved parsing for expressions in braces"""
         if len(parts) < 3:
-            raise NoobieError("SET command requires at least 2 arguments")
+            raise NoobieError("CREATE command requires at least 2 arguments")
         
         # Check if CONST is specified
         is_const = parts[1].lower() == 'const'
         offset = 2 if is_const else 1
         
         if len(parts) < offset + 2:
-            raise NoobieError(f"SET {'CONST ' if is_const else ''}command requires type and variable name")
+            raise NoobieError(f"CREATE {'CONST ' if is_const else ''}command requires type and variable name")
         
         var_type = parts[offset].upper()
         var_name = parts[offset + 1]
@@ -145,7 +145,7 @@ class NoobieInterpreter:
                         value = evaluated_value
                         
                 except Exception as e:
-                    raise NoobieError(f"Error evaluating expression in SET command: {e}")
+                    raise NoobieError(f"Error evaluating expression in CREATE command: {e}")
             else:
                 # Handle regular value assignment
                 value = initialize_variable(var_type, value_raw)
@@ -156,15 +156,15 @@ class NoobieInterpreter:
         # Create the variable
         self.variables[var_name] = Variable(var_type, value, is_const)
     
-    def _handle_hear(self, parts: List[str], line_number: int):
-        """Handle HEAR command"""
+    def _handle_listen(self, parts: List[str], line_number: int):
+        """Handle LISTEN command"""
         if len(parts) < 3:
-            raise NoobieError("HEAR command requires type and message")
+            raise NoobieError("LISTEN command requires type and message")
         
         var_type = parts[1]
         message = ' '.join(parts[2:]).strip('"')
         
-        user_input = input(f"{message}: ")
+        user_input = input(f"{message}")
         value = initialize_variable(var_type, user_input)
         self.variables['heared'] = Variable(var_type.upper(), value)
     
@@ -380,7 +380,7 @@ class NoobieInterpreter:
         command = parts[0].lower()
         
         # For SET command, we need to handle case sensitivity differently
-        if command == 'set':
+        if command == 'create':
             # Keep the original parts but lowercase the command
             parts[0] = command
             # Handle case sensitivity within the SET handler
