@@ -587,7 +587,7 @@ class NoobieInterpreter:
                                     'AND', 'OR', 'NOT', 'XOR', 'and', 'or', 'not', 'xor']):
             try:
                 result = self._evaluate_expression_with_parentheses(line_for_variable_replacement)
-                print(result, end='')  # Rimuove l'andata a capo automatica
+                print(result)  # Rimuove l'andata a capo automatica
             except NoobieError:
                 raise
         else:
