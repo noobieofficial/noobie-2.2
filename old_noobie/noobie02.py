@@ -1,35 +1,35 @@
-import sys
 import re
-from typing import Dict, List, Optional, Callable
+import sys
 from func import *
+from typing import Dict, List, Optional, Callable
 
 class NoobieInterpreter:
     """Main interpreter class for the Noobie language"""
     
     def __init__(self):
-        self.variables: Dict[str, Variable] = {}
         self.in_comment_block = False
+        self.variables: Dict[str, Variable] = {}
         self.command_handlers = self._initialize_command_handlers()
     
     def _initialize_command_handlers(self) -> Dict[str, Callable]:
         """Initialize command handlers for better maintainability"""
         return {
-            'exit': self._handle_exit,
             'say': self._handle_say,
-            'set': self._handle_set,
-            'hear': self._handle_hear,
+            'del': self._handle_del,
+            'exit': self._handle_exit,
+            'swap': self._handle_swap,
+            'create': self._handle_set,
+            'listen': self._handle_hear,
+            'reset': self._handle_reset,
+            'round': self._handle_round,
+            'random': self._handle_random,
             'change': self._handle_change,
             'convert': self._handle_convert,
-            'random': self._handle_random,
-            'round': self._handle_round,
-            'del': self._handle_del,
-            'reset': self._handle_reset,
+            'reverse': self._handle_reverse,
             'increment': self._handle_increment,
             'decrement': self._handle_decrement,
-            'swap': self._handle_swap,
             'uppercase': self._handle_uppercase,
             'lowercase': self._handle_lowercase,
-            'reverse': self._handle_reverse,
         }
     
     def _evaluate_expression_with_parentheses(self, expression: str) -> Any:
@@ -96,11 +96,11 @@ class NoobieInterpreter:
             raise NoobieError(f"SET {'CONST ' if is_const else ''}command requires type and variable name")
         
         var_type = parts[offset].upper()
-        var_name = parts[offset + 1].lower()
+        var_name = parts[offset + 1]
         
         # Check for reserved variable name
-        if var_name == "heared":
-            raise NoobieError("Cannot use 'heared' as variable name")
+        if var_name == "listened":
+            raise NoobieError("Cannot use 'listened' as variable name")
         
         # Check if variable is already a constant
         if var_name in self.variables and self.variables[var_name].const:
