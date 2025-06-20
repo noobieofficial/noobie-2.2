@@ -1,7 +1,7 @@
 import sys
 import re
 from func import *
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Tuple
 
 class NoobieInterpreter:
     """Main interpreter class for the Noobie language"""
@@ -175,21 +175,44 @@ class NoobieInterpreter:
         
         raise NoobieError("missing ENDO for IF statement")
     
+    def _find_else_in_block(self, lines: List[str], start_index: int, end_index: int) -> Optional[int]:
+        """Find ELSE at the same nesting level within an IF block"""
+        if_count = 0
+        for i in range(start_index + 1, end_index):
+            line = lines[i].strip().lower()
+            if line.startswith('if '):
+                if_count += 1
+            elif line == 'endo':
+                if_count -= 1
+            elif line == 'else' and if_count == 0:
+                return i
+        
+        return None
+    
     def _handle_if(self, parts: List[str], line_number: int):
         """Handle IF command - this is called when we encounter IF in single-line mode"""
         raise NoobieError("IF command should be handled in multiline context")
     
-    def _execute_if_block(self, condition: str, block_lines: List[str]):
-        """Execute an IF block if condition is true"""
+    def _execute_if_else_block(self, condition: str, if_lines: List[str], else_lines: Optional[List[str]] = None):
+        """Execute an IF/ELSE block based on condition"""
         if self._evaluate_condition(condition):
-            # Create a temporary code block and interpret it
-            block_code = '\n'.join(block_lines)
-            # Use a recursive call to interpret the block
-            temp_interpreter = NoobieInterpreter()
-            temp_interpreter.variables = self.variables.copy()  # Share variables
-            temp_interpreter.interpret(block_code)
-            # Update our variables with any changes
-            self.variables.update(temp_interpreter.variables)
+            # Execute IF block
+            if if_lines:
+                block_code = '\n'.join(if_lines)
+                temp_interpreter = NoobieInterpreter()
+                temp_interpreter.variables = self.variables.copy()  # Share variables
+                temp_interpreter.interpret(block_code)
+                # Update our variables with any changes
+                self.variables.update(temp_interpreter.variables)
+        else:
+            # Execute ELSE block if it exists
+            if else_lines:
+                block_code = '\n'.join(else_lines)
+                temp_interpreter = NoobieInterpreter()
+                temp_interpreter.variables = self.variables.copy()  # Share variables
+                temp_interpreter.interpret(block_code)
+                # Update our variables with any changes
+                self.variables.update(temp_interpreter.variables)
     
     def _handle_exit(self, parts: List[str], line_number: int):
         """Handle EXIT command"""
@@ -614,7 +637,7 @@ class NoobieInterpreter:
         return result
     
     def interpret(self, code: str):
-        """Main interpretation method with IF support"""
+        """Main interpretation method with IF/ELSE support"""
         try:
             lines = code.splitlines()
             i = 0
@@ -664,16 +687,28 @@ class NoobieInterpreter:
                         e.line_number = line_number
                         raise
                     
-                    # Extract block lines
-                    block_lines = []
-                    for j in range(i + 1, endo_index):
+                    # Find ELSE within this block (if exists)
+                    else_index = self._find_else_in_block(lines, i, endo_index)
+                    
+                    # Extract IF block lines
+                    if_end_index = else_index if else_index else endo_index
+                    if_lines = []
+                    for j in range(i + 1, if_end_index):
                         block_line = lines[j].strip()
                         if block_line:  # Skip empty lines in block
-                            block_lines.append(block_line)
+                            if_lines.append(block_line)
                     
-                    # Execute IF block
+                    # Extract ELSE block lines (if exists)
+                    else_lines = []
+                    if else_index:
+                        for j in range(else_index + 1, endo_index):
+                            block_line = lines[j].strip()
+                            if block_line:  # Skip empty lines in block
+                                else_lines.append(block_line)
+                    
+                    # Execute IF/ELSE block
                     try:
-                        self._execute_if_block(condition, block_lines)
+                        self._execute_if_else_block(condition, if_lines, else_lines if else_lines else None)
                     except NoobieError as e:
                         if e.line_number is None:
                             e.line_number = line_number
@@ -682,8 +717,13 @@ class NoobieInterpreter:
                     # Skip to after ENDO
                     i = endo_index + 1
                 
-                # Skip ENDO lines (they're handled by IF processing)
-                elif line.lower() == 'endo':
+                # Skip ELSE and ENDO lines (they're handled by IF processing)
+                elif line.lower() in ['else', 'endo']:
+                    # These should only appear within IF blocks
+                    if line.lower() == 'else':
+                        raise NoobieError("ELSE without matching IF", line_number)
+                    elif line.lower() == 'endo':
+                        raise NoobieError("ENDO without matching IF", line_number)
                     i += 1
                 
                 # Process other lines normally
