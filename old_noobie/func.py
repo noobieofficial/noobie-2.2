@@ -16,9 +16,9 @@ class DataType(Enum):
 
 class Command(Enum):
     """Enumeration for supported commands"""
-    SET = "SET"
+    CREATE = "CREATE"
     SAY = "SAY"
-    HEAR = "HEAR"
+    LISTEN = "LISTEN"
     CONVERT = "CONVERT"
     CHANGE = "CHANGE"
     RANDOM = "RANDOM"
