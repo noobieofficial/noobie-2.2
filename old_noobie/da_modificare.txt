@@ -1,5 +1,4 @@
 DA MODIFICARE:
-  1- Listen syntax -> LISTEN <type> <name> "prompt" -> senza :, prompt è obbligatorio ("");
+  1- Listen syntax -> LISTEN <type> <name> "prompt" -> prompt è obbligatorio ("")
   2- Aggiunta ELSE in IF
   3- Sintassi semplificata per SAY, EXIT, HEAR -> < "ciao @nome ! \n" == "ciao" nome "!" end -> end == @end == '\n'
-  4- Say non va a capo in automatico
