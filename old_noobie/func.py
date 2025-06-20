@@ -129,7 +129,7 @@ def read_code_from_file(filename: str) -> str:
 def handle_error(message: str, line_number: Optional[int] = None):
     """Improved error handling"""
     if line_number:
-        print(f"Error on line {line_number}: {message}", file=sys.stderr)
+        print(f"LINE {line_number} -> ERROR:  {message}", file=sys.stderr)
     else:
         print(f"Error: {message}", file=sys.stderr)
     
