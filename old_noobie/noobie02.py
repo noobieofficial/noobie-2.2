@@ -39,7 +39,7 @@ class NoobieInterpreter:
         except NoobieError:
             raise
         except Exception as e:
-            raise NoobieError(f"Error evaluating expression: {e}")
+            raise NoobieError(f"error evaluating expression: {e}")
     
     def _extract_expression(self, message: str) -> str:
         """Extract and execute expressions in curly braces"""
@@ -59,7 +59,6 @@ class NoobieInterpreter:
     def _handle_exit(self, parts: List[str], line_number: int):
         """Handle EXIT command"""
         if len(parts) == 1:
-            print("Exiting program... Goodbye!")
             sys.exit(0)
         elif len(parts) == 2:
             message = parts[1].strip('"')
@@ -78,7 +77,7 @@ class NoobieInterpreter:
         
         # Check for extra quotes
         if message.count('"') > 0:
-            raise NoobieError("Extra characters after message in SAY command")
+            raise NoobieError("extra characters after message in SAY command")
         
         message = self._extract_expression(message)
         print(message)
@@ -104,7 +103,7 @@ class NoobieInterpreter:
         
         # Check if variable is already a constant
         if var_name in self.variables and self.variables[var_name].const:
-            raise NoobieError(f"Cannot redeclare constant variable: '{var_name}'")
+            raise NoobieError(f"cannot redeclare constant variable: '{var_name}'")
         
         # Handle value assignment
         if len(parts) > offset + 2:
@@ -140,12 +139,12 @@ class NoobieInterpreter:
                             else:
                                 raise NoobieError("CHAR ASCII value must be between 0 and 127")
                         else:
-                            raise NoobieError(f"Cannot convert expression result to {var_type}")
+                            raise NoobieError(f"cannot convert expression result to {var_type}")
                     else:
                         value = evaluated_value
                         
                 except Exception as e:
-                    raise NoobieError(f"Error evaluating expression in CREATE command: {e}")
+                    raise NoobieError(f"error evaluating expression in CREATE command: {e}")
             else:
                 # Handle regular value assignment
                 value = initialize_variable(var_type, value_raw)
@@ -166,7 +165,7 @@ class NoobieInterpreter:
         
         user_input = input(f"{message}")
         value = initialize_variable(var_type, user_input)
-        self.variables['heared'] = Variable(var_type.upper(), value)
+        self.variables['listened'] = Variable(var_type.upper(), value)
     
     def _handle_change(self, parts: List[str], line_number: int):
         """Handle CHANGE command"""
@@ -177,10 +176,10 @@ class NoobieInterpreter:
         new_value_raw = ' '.join(parts[2:])
         
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         if self.variables[var_name].const:
-            raise NoobieError(f"Cannot modify constant variable: '{var_name}'")
+            raise NoobieError(f"cannot modify constant variable: '{var_name}'")
         
         var_type = self.variables[var_name].type
         
@@ -201,10 +200,10 @@ class NoobieInterpreter:
         var_name, new_type = parts[1].lower(), parts[2].upper()
         
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         if self.variables[var_name].const:
-            raise NoobieError(f"Cannot modify constant variable: '{var_name}'")
+            raise NoobieError(f"cannot modify constant variable: '{var_name}'")
         
         old_var = self.variables[var_name]
         new_value = convert_value(old_var.value, old_var.type, new_type)
@@ -234,7 +233,7 @@ class NoobieInterpreter:
         var_name, precision = parts[1].lower(), int(parts[2])
         
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         if self.variables[var_name].type != 'FLOAT':
             raise NoobieError("ROUND command requires a FLOAT variable")
@@ -249,7 +248,7 @@ class NoobieInterpreter:
         
         var_name = parts[1].lower()
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         del self.variables[var_name]
     
@@ -260,7 +259,7 @@ class NoobieInterpreter:
         
         var_name = parts[1].lower()
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         var_type = self.variables[var_name].type
         self.variables[var_name].value = initialize_variable(var_type, None)
@@ -272,7 +271,7 @@ class NoobieInterpreter:
         
         var_name = parts[1].lower()
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         if self.variables[var_name].type not in ['INT', 'FLOAT']:
             raise NoobieError("INCREMENT requires INT or FLOAT variable")
@@ -286,7 +285,7 @@ class NoobieInterpreter:
         
         var_name = parts[1].lower()
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         if self.variables[var_name].type not in ['INT', 'FLOAT']:
             raise NoobieError("DECREMENT requires INT or FLOAT variable")
@@ -301,10 +300,10 @@ class NoobieInterpreter:
         var1, var2 = parts[1].lower(), parts[2].lower()
         
         if var1 not in self.variables or var2 not in self.variables:
-            raise NoobieError("Both variables must be declared")
+            raise NoobieError("both variables must be declared")
         
         if self.variables[var1].type != self.variables[var2].type:
-            raise NoobieError("Both variables must have the same type")
+            raise NoobieError("both variables must have the same type")
         
         self.variables[var1].value, self.variables[var2].value = \
             self.variables[var2].value, self.variables[var1].value
