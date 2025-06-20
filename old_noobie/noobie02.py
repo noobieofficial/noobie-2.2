@@ -1,11 +1,10 @@
-import re
 import sys
+import re
 from func import *
 from typing import Dict, List, Optional, Callable
 
 class NoobieInterpreter:
     """Main interpreter class for the Noobie language"""
-    
     def __init__(self):
         self.in_comment_block = False
         self.variables: Dict[str, Variable] = {}
@@ -14,15 +13,16 @@ class NoobieInterpreter:
     def _initialize_command_handlers(self) -> Dict[str, Callable]:
         """Initialize command handlers for better maintainability"""
         return {
+            'if': self._handle_if,
             'say': self._handle_say,
             'del': self._handle_del,
             'exit': self._handle_exit,
             'swap': self._handle_swap,
-            'reset': self._handle_reset,
             'round': self._handle_round,
+            'reset': self._handle_reset,
+            'random': self._handle_random,
             'create': self._handle_create,
             'listen': self._handle_listen,
-            'random': self._handle_random,
             'change': self._handle_change,
             'convert': self._handle_convert,
             'reverse': self._handle_reverse,
@@ -55,6 +55,58 @@ class NoobieInterpreter:
             message = message[:match.start()] + result + message[match.end():]
         
         return message
+    
+    def _evaluate_condition(self, condition: str) -> bool:
+        """Evaluate a condition and return boolean result"""
+        # Replace variables with their values
+        condition = replace_variables(condition, self.variables)
+        
+        try:
+            result = self._evaluate_expression_with_parentheses(condition)
+            
+            # Convert result to boolean
+            if isinstance(result, str):
+                if result.lower() in ['true', 'false']:
+                    return result.lower() == 'true'
+                # Non-empty strings are truthy
+                return bool(result.strip())
+            elif isinstance(result, (int, float)):
+                return result != 0
+            else:
+                return bool(result)
+                
+        except Exception as e:
+            raise NoobieError(f"error evaluating condition '{condition}': {e}")
+    
+    def _find_matching_endo(self, lines: List[str], start_index: int) -> int:
+        """Find the matching ENDO for an IF statement"""
+        if_count = 1
+        for i in range(start_index + 1, len(lines)):
+            line = lines[i].strip().lower()
+            if line.startswith('if '):
+                if_count += 1
+            elif line == 'endo':
+                if_count -= 1
+                if if_count == 0:
+                    return i
+        
+        raise NoobieError("missing ENDO for IF statement")
+    
+    def _handle_if(self, parts: List[str], line_number: int):
+        """Handle IF command - this is called when we encounter IF in single-line mode"""
+        raise NoobieError("IF command should be handled in multiline context")
+    
+    def _execute_if_block(self, condition: str, block_lines: List[str]):
+        """Execute an IF block if condition is true"""
+        if self._evaluate_condition(condition):
+            # Create a temporary code block and interpret it
+            block_code = '\n'.join(block_lines)
+            # Use a recursive call to interpret the block
+            temp_interpreter = NoobieInterpreter()
+            temp_interpreter.variables = self.variables.copy()  # Share variables
+            temp_interpreter.interpret(block_code)
+            # Update our variables with any changes
+            self.variables.update(temp_interpreter.variables)
     
     def _handle_exit(self, parts: List[str], line_number: int):
         """Handle EXIT command"""
@@ -95,11 +147,11 @@ class NoobieInterpreter:
             raise NoobieError(f"CREATE {'CONST ' if is_const else ''}command requires type and variable name")
         
         var_type = parts[offset].upper()
-        var_name = parts[offset + 1]
+        var_name = parts[offset + 1].lower()
         
         # Check for reserved variable name
         if var_name == "listened":
-            raise NoobieError("Cannot use 'listened' as variable name")
+            raise NoobieError("cannot use 'listened' as variable name")
         
         # Check if variable is already a constant
         if var_name in self.variables and self.variables[var_name].const:
@@ -144,7 +196,7 @@ class NoobieInterpreter:
                         value = evaluated_value
                         
                 except Exception as e:
-                    raise NoobieError(f"error evaluating expression in CREATE command: {e}")
+                    raise NoobieError(f"error evaluating expression in SET command: {e}")
             else:
                 # Handle regular value assignment
                 value = initialize_variable(var_type, value_raw)
@@ -163,7 +215,7 @@ class NoobieInterpreter:
         var_type = parts[1]
         message = ' '.join(parts[2:]).strip('"')
         
-        user_input = input(f"{message}")
+        user_input = input(f"{message}: ")
         value = initialize_variable(var_type, user_input)
         self.variables['listened'] = Variable(var_type.upper(), value)
     
@@ -315,7 +367,7 @@ class NoobieInterpreter:
         
         var_name = parts[1].lower()
         if var_name not in self.variables:
-            raise NoobieError(f"Variable '{var_name}' not declared")
+            raise NoobieError(f"variable '{var_name}' not declared")
         
         var_type = self.variables[var_name].type
         valid_types = ['CHAR', 'STR'] if operation != 'REVERSE' else ['STR']
@@ -408,15 +460,86 @@ class NoobieInterpreter:
             raise NoobieError(f"Unknown command: {command}")
     
     def interpret(self, code: str):
-        """Main interpretation method"""
+        """Main interpretation method with IF support"""
         try:
-            for line_number, line in enumerate(code.splitlines(), start=1):
-                line = line.strip()  # Don't lowercase here, handle in _process_line
-                try:
-                    self._process_line(line, line_number)
-                except NoobieError as e:
-                    e.line_number = line_number
-                    raise
+            lines = code.splitlines()
+            i = 0
+            
+            while i < len(lines):
+                line = lines[i].strip()
+                line_number = i + 1
+                
+                # Skip empty lines
+                if not line:
+                    i += 1
+                    continue
+                
+                # Handle comment blocks
+                if line.startswith('##'):
+                    if not self.in_comment_block:
+                        self.in_comment_block = True
+                    else:
+                        self.in_comment_block = False
+                    i += 1
+                    continue
+                
+                if self.in_comment_block:
+                    i += 1
+                    continue
+                
+                # Remove single-line comments
+                line = line.split('#', 1)[0].strip()
+                if not line:
+                    i += 1
+                    continue
+                
+                # Check for IF statement
+                if line.lower().startswith('if '):
+                    # Extract condition
+                    if_parts = line.split()
+                    if len(if_parts) < 3 or if_parts[-1].lower() != 'do':
+                        raise NoobieError("IF statement must end with DO", line_number)
+                    
+                    # Extract condition (everything between IF and DO)
+                    condition = ' '.join(if_parts[1:-1])
+                    
+                    # Find matching ENDO
+                    try:
+                        endo_index = self._find_matching_endo(lines, i)
+                    except NoobieError as e:
+                        e.line_number = line_number
+                        raise
+                    
+                    # Extract block lines
+                    block_lines = []
+                    for j in range(i + 1, endo_index):
+                        block_line = lines[j].strip()
+                        if block_line:  # Skip empty lines in block
+                            block_lines.append(block_line)
+                    
+                    # Execute IF block
+                    try:
+                        self._execute_if_block(condition, block_lines)
+                    except NoobieError as e:
+                        if e.line_number is None:
+                            e.line_number = line_number
+                        raise
+                    
+                    # Skip to after ENDO
+                    i = endo_index + 1
+                
+                # Skip ENDO lines (they're handled by IF processing)
+                elif line.lower() == 'endo':
+                    i += 1
+                
+                # Process other lines normally
+                else:
+                    try:
+                        self._process_line(line, line_number)
+                    except NoobieError as e:
+                        e.line_number = line_number
+                        raise
+                    i += 1
                     
         except NoobieError as e:
             handle_error(str(e), e.line_number)
@@ -440,4 +563,4 @@ def main():
         handle_error(f"Error reading file: {e}")
 
 if __name__ == '__main__':
-    main()
+    main() 
