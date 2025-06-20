@@ -131,7 +131,7 @@ def handle_error(message: str, line_number: Optional[int] = None):
     if line_number:
         print(f"LINE {line_number} -> ERROR:  {message}", file=sys.stderr)
     else:
-        print(f"Error: {message}", file=sys.stderr)
+        print(f"ERROR: {message}", file=sys.stderr)
     
     #if sys.exc_info()[0] is not None:
     #    traceback.print_exc()
@@ -187,7 +187,7 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
             "INT": 0,
             "FLOAT": 0.0,
             "BOOL": None,
-            "CHAR": '\x00',
+            "CHAR": '\0',
             "STR": ''
         }
         return defaults[var_type]
