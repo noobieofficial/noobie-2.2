@@ -1,28 +1,28 @@
-import sys
 import re
+import sys
 import random
 import traceback
-from typing import Dict, Any, Union, Optional, Set
-from dataclasses import dataclass
 from enum import Enum
+from dataclasses import dataclass
+from typing import Dict, Any, Union, Optional, Set
 
 class DataType(Enum):
     """Enumeration for supported data types"""
     INT = "INT"
-    FLOAT = "FLOAT"
-    CHAR = "CHAR"
     STR = "STR"
+    CHAR = "CHAR"
     BOOL = "BOOL"
+    FLOAT = "FLOAT"
 
 class Command(Enum):
     """Enumeration for supported commands"""
-    CREATE = "CREATE"
     SAY = "SAY"
-    LISTEN = "LISTEN"
-    CONVERT = "CONVERT"
-    CHANGE = "CHANGE"
-    RANDOM = "RANDOM"
     EXIT = "EXIT"
+    CREATE = "CREATE"
+    RANDOM = "RANDOM"
+    CHANGE = "CHANGE"
+    CONVERT = "CONVERT"
+    LISTENED = "LISTENED"
 
 @dataclass
 class Variable:
@@ -77,7 +77,7 @@ def evaluate_expression(expression: str, variables: Dict[str, Variable]) -> Unio
             # Check type consistency
             types = {variables[var].type for var in actual_vars}
             if len(types) > 1:
-                raise NoobieError(f"Type Error: Variables have different types: {types}")
+                raise NoobieError(f"type Error: Variables have different types: {types}")
         
         # Create safe evaluation environment
         safe_dict = {"__builtins__": {}}
@@ -90,7 +90,7 @@ def evaluate_expression(expression: str, variables: Dict[str, Variable]) -> Unio
         return auto_round(result) if isinstance(result, float) else result
         
     except Exception as e:
-        raise NoobieError(f"Calculation Error: {e}")
+        raise NoobieError(f"calculation Error: {e}")
 
 def replace_variables(line: str, variables: Dict[str, Variable]) -> str:
     """Replace variable references with their values or types"""
@@ -120,16 +120,16 @@ def read_code_from_file(filename: str) -> str:
         with open(filename, 'r', encoding='utf-8') as file:
             return file.read()
     except FileNotFoundError:
-        raise NoobieError(f"File '{filename}' not found")
+        raise NoobieError(f"file '{filename}' not found")
     except PermissionError:
-        raise NoobieError(f"Permission denied reading file '{filename}'")
+        raise NoobieError(f"permission denied reading file '{filename}'")
     except Exception as e:
-        raise NoobieError(f"File reading error: {e}")
+        raise NoobieError(f"file reading error: {e}")
 
 def handle_error(message: str, line_number: Optional[int] = None):
     """Improved error handling"""
     if line_number:
-        print(f"LINE {line_number} -> ERROR:  {message}", file=sys.stderr)
+        print(f"LINE {line_number} -> ERROR: {message}", file=sys.stderr)
     else:
         print(f"ERROR: {message}", file=sys.stderr)
     
@@ -179,7 +179,7 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
     var_type = var_type.upper()
     
     if var_type not in [t.value for t in DataType]:
-        raise NoobieError(f"Unsupported type: {var_type}")
+        raise NoobieError(f"unsupported type: {var_type}")
     
     # Default values for None input
     if raw_value is None:
@@ -187,7 +187,7 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
             "INT": 0,
             "FLOAT": 0.0,
             "BOOL": None,
-            "CHAR": '\0',
+            "CHAR": '\x00',
             "STR": ''
         }
         return defaults[var_type]
@@ -197,7 +197,7 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
     try:
         # Skip expression evaluation if it starts with { (will be handled by interpreter)
         if raw_value.startswith('{') and raw_value.endswith('}'):
-            raise NoobieError("Expression with curly braces should be handled by the interpreter")
+            raise NoobieError("expression with curly braces should be handled by the interpreter")
         
         # Handle mathematical expressions for numeric types
         if var_type in ["INT", "FLOAT"] and is_valid_expression(raw_value):
@@ -228,23 +228,23 @@ def initialize_variable(var_type: str, raw_value: Optional[str] = None) -> Any:
                 return raw_value[1]
             if len(raw_value) == 1:
                 return raw_value
-            raise NoobieError("Invalid CHAR value")
+            raise NoobieError("invalid CHAR value")
         elif var_type == "STR":
             return raw_value.strip('"\'')
             
     except ValueError as e:
-        raise NoobieError(f"Cannot convert '{raw_value}' to {var_type}: {e}")
+        raise NoobieError(f"cannot convert '{raw_value}' to {var_type}: {e}")
     except NoobieError:
         raise
     except Exception as e:
-        raise NoobieError(f"Initialization error: {e}")
+        raise NoobieError(f"initialization error: {e}")
 
 def convert_value(current: Any, old_type: str, new_type: str) -> Any:
     """Convert a value between data types with improved logic"""
     old_type, new_type = old_type.upper(), new_type.upper()
     
     if new_type not in [t.value for t in DataType]:
-        raise NoobieError(f"Unsupported type: {new_type}")
+        raise NoobieError(f"unsupported type: {new_type}")
     
     try:
         # Conversion matrix - more readable
@@ -279,23 +279,23 @@ def convert_value(current: Any, old_type: str, new_type: str) -> Any:
         if conversion_key in conversions:
             result = conversions[conversion_key](current)
             if result is None:
-                raise NoobieError(f"Invalid conversion from {old_type} to {new_type}")
+                raise NoobieError(f"invalid conversion from {old_type} to {new_type}")
             return result
         else:
-            raise NoobieError(f"Unsupported conversion: {old_type} -> {new_type}")
+            raise NoobieError(f"unsupported conversion: {old_type} -> {new_type}")
             
     except Exception as e:
-        raise NoobieError(f"Conversion error: {e}")
+        raise NoobieError(f"conversion error: {e}")
 
 def randomize(min_val: int, max_val: int, var_type: str) -> Any:
     """Generate a random value with improved validation"""
     var_type = var_type.upper()
     
     if var_type not in [t.value for t in DataType]:
-        raise NoobieError(f"Unsupported type: {var_type}")
+        raise NoobieError(f"unsupported type: {var_type}")
     
     if min_val > max_val:
-        raise NoobieError("Min value cannot be greater than max value")
+        raise NoobieError("min value cannot be greater than max value")
     
     if var_type == "INT":
         return random.randint(min_val, max_val)
@@ -310,11 +310,11 @@ def randomize(min_val: int, max_val: int, var_type: str) -> Any:
             return random.choice([True, False])
         elif min_val == 1 and max_val == 3:
             return random.choice([True, False, None])
-        raise NoobieError("Invalid BOOL range (use 1-2 or 1-3)")
+        raise NoobieError("invalid BOOL range (use 1-2 or 1-3)")
     elif var_type == "STR":
         # More comprehensive character set
         chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:'\",.<>/?`~"
         length = random.randint(min_val, max_val)
         return ''.join(random.choice(chars) for _ in range(length))
     
-    raise NoobieError(f"Unsupported type for randomization: {var_type}")
+    raise NoobieError(f"unsupported type for randomization: {var_type}")
